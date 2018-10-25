@@ -1,0 +1,206 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <script type="text/javascript" src="simpleGame.js"></script>
+    <script type="text/javascript">
+        //simple game with a single moving player
+        let scene;
+        let player;
+        let crosshair;
+        let bullet;
+        let background;
+        let audio;
+        let deathscreen = 0;
+        let score = 0;
+        let zombies = new Array(5);
+        let PAUSED = false;
+
+        function shootBullet(){
+            bullet.show();
+            bullet.setPosition(player.x, player.y)
+            bullet.setAngle(bullet.angleTo(crosshair)+180);
+            bullet.setSpeed(50);
+            audio.pause();
+            audio.currentTime = 0;
+            audio.play();
+        }
+        
+        function Zombie() {
+            tzombie = new Sprite(scene, "zombie.png", 50, 50);
+            tzombie.spawn = function(){
+                let random_side = Math.floor(Math.random() * 4);
+                let random_y;
+                let random_x;
+                this.show();
+                if(random_side == 0){
+                    random_y = Math.floor(Math.random() * 800);
+                    this.setPosition(0, random_y);
+                }
+                else if(random_side == 1){
+                    random_x = Math.floor(Math.random() * 800);
+                    this.setPosition(random_x, 0);
+                }
+                else if(random_side == 2){
+                    random_y = Math.floor(Math.random() * 800);
+                    this.setPosition(800, random_y);                  
+                }
+                else if(random_side == 3){
+                    random_x = Math.floor(Math.random() * 800);
+                    this.setPosition(random_x, 800);                  
+                }
+            }
+
+            tzombie.updateAngle = function(){
+                this.setAngle(player.angleTo(this));
+            }
+            
+            tzombie.sprint = function(){
+                let new_speed = this.getSpeed() * 1.01;
+                this.setSpeed(new_speed);
+            }
+
+            tzombie.checkKill = function(){
+                if(this.collidesWith(player)){
+                    PAUSED = true;
+                    deathscreen.show();
+                }
+            }
+            
+            tzombie.checkDead = function(){
+                return this.collidesWith(bullet);
+            }
+
+            tzombie.setSpeed(5 + (score*.05));
+            return tzombie;
+        }
+
+        function Bullet() {
+            tbullet = new Sprite(scene, "bullet.png", 20, 20);
+            tbullet.setBoundAction(DIE);
+            tbullet.hide();
+            return tbullet;
+        }
+        
+        function Player() {
+            tplayer = new Sprite(scene, "player.png", 50, 50);
+            tplayer.setAngle(90);
+            tplayer.setSpeed(0);
+            tplayer.checkKeys = function(){
+                if (keysDown[K_LEFT] || keysDown[K_A]) {
+                    this.setMoveAngle(270);
+                    this.setSpeed(7);
+                }
+                if (keysDown[K_RIGHT] || keysDown[K_D]) {
+                    this.setMoveAngle(90);
+                    this.setSpeed(7);
+                }
+                if (keysDown[K_UP] || keysDown[K_W]) {
+                    this.setMoveAngle(0);
+                    this.setSpeed(7);
+                }
+                if (keysDown[K_DOWN] || keysDown[K_S]) {
+                    this.setMoveAngle(180);
+                    this.setSpeed(7);
+                }
+            }
+            
+            tplayer.checkSpeed = function(){
+                let new_speed = this.getSpeed() * .90;
+                this.setSpeed(new_speed);
+            }
+            return tplayer;
+        }
+        
+        function init() {
+            scene = new Scene();
+            scene.setSize(800,800);
+
+            background = new Sprite(scene, "BG.png", 800, 800);
+            background.setSpeed(0);
+            background.setPosition(400, 400);
+            audio = new Audio('9_mm_gunshot-mike-koenig-123.wav');
+            player = new Player();
+            bullet = new Bullet();
+            crosshair = new Sprite(scene, "crosshair.png", 20, 20);
+
+            deathscreen = new Sprite(scene, "deathscreen.png", 800, 800);
+            deathscreen.setSpeed(0);
+            deathscreen.setPosition(400, 400);
+            deathscreen.hide();
+
+            scene.context.strokeStyle = "#ff0000";
+            scene.canvas.addEventListener("mousedown", shootBullet);
+            
+            scene.start();
+        }
+        
+        function drawLine(){
+            crosshair.setPosition(scene.getMouseX()-20, scene.getMouseY()-9);
+            scene.context.beginPath();
+            scene.context.moveTo(player.x, player.y);
+            scene.context.lineTo(scene.getMouseX()-9, scene.getMouseY()-9);
+            scene.context.stroke();
+        }
+        
+        function update() {
+            if(!PAUSED){
+                scene.clear();
+                background.update();
+                drawLine();
+                player.checkKeys();
+                player.checkSpeed();
+                player.setImgAngle(player.angleTo(crosshair));
+                bullet.update();
+                crosshair.update();
+                player.update();
+                for(let i = 0; i < zombies.length; ++i){
+                    if(typeof zombies[i] === 'undefined'){
+                        zombies[i] = new Zombie();
+                        zombies[i].spawn();
+                        zombies[i].update();
+                        zombies[i].updateAngle();
+                        zombies[i].checkKill();
+                        zombies[i].sprint();
+                        if(zombies[i].checkDead()){
+                            bullet.hide();
+                            zombies.splice(i, 1, undefined);
+                            ++score;
+                        }
+                    }
+                    else{
+                        zombies[i].updateAngle();
+                        zombies[i].update();
+                        zombies[i].checkKill();
+                        zombies[i].sprint();
+                        if (zombies[i].checkDead()) {
+                            bullet.hide();
+                            zombies.splice(i, 1, undefined);
+                            ++score;
+                        }
+                    }
+                }
+                document.getElementById('score').innerText = new String(score);
+                deathscreen.update();
+            }
+            if(keysDown[K_SPACE] && PAUSED){
+                for(let i = 0; i < zombies.length; ++i){
+                    zombies[i].setSpeed(0);
+                    zombies[i] = undefined;
+                }
+                deathscreen.hide();
+                score = 0;
+                PAUSED = false;
+            }
+        }
+
+    </script>
+</head>
+
+<span>Score: <span id="score">0</span> </span>
+<body onload="init()" style="cursor:none">
+</body>
+
+</html>
